@@ -89,13 +89,15 @@ function GetInfoFromTrueType(file:string, embed:boolean, subset:boolean, map:any
 	}catch(e:any){
 		Error(e.toString());
 	}
-    let info={};
+    let info:any={};
     if(embed){
 
 		if(!ttf?.embeddable){
 			Error('Font license does not allow embedding');
         }
+		
 		if(subset){
+			
 			let chars:any = [];
             map.forEach((v:any) => {
                 if(v['name']!=='.notdef'){
@@ -103,13 +105,14 @@ function GetInfoFromTrueType(file:string, embed:boolean, subset:boolean, map:any
                 }  
             });
        
-			//ttf.Subset(chars);
-			//info['Data'] = ttf.Build();
-		}
-		else{
+			ttf?.Subset(chars);
+			info['Data'] = ttf?.Build();
+		
+		}else{
 			//info['Data'] = file_get_contents(file);
         }
-		//info['OriginalSize'] = info['Data'].length
+
+		info['OriginalSize'] = info['Data'].length
 	}
 
     /*

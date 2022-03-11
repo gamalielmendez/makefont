@@ -411,16 +411,138 @@ import * as path from 'path';
 	Subset(chars:any){
 
 		this.subsettedGlyphs = [];
-		//this.AddGlyph(0);
-		/*$this->subsettedChars = array();
-		foreach($chars as $char)
-		{
-			if(isset($this->chars[$char]))
-			{
-				$this->subsettedChars[] = $char;
-				$this->AddGlyph($this->chars[$char]);
+		this.AddGlyph(0);
+		this.subsettedChars =[];
+
+		chars.forEach((char:any) => {
+			if(this.chars[char]){
+				this.subsettedChars.push(char);	
+				this.AddGlyph(this.chars[char]);
 			}
-		}*/
+		});
+	}
+
+	AddGlyph(id:any){
+
+		if(!this.glyphs[id]['ssid']){
+
+			this.glyphs[id]['ssid'] = this.subsettedGlyphs.length
+			this.subsettedGlyphs.push(id);
+			
+			if(this.glyphs[id]['components']){
+				this.glyphs[id]['components'].forEach((cid:any) => {
+					this.AddGlyph(cid);	
+				});
+			}
+
+		}
+	}
+
+	Build(){
+		this.BuildCmap();
+		/*$this->BuildHhea();
+		$this->BuildHmtx();
+		$this->BuildLoca();
+		$this->BuildGlyf();
+		$this->BuildMaxp();
+		$this->BuildPost();
+		return $this->BuildFont();
+		*/
+	}
+
+	BuildCmap(){
+
+		if(!this.subsettedChars){
+			return;
+		}
+		
+		// Divide charset in contiguous segments
+		let chars = this.subsettedChars;
+		chars.sort((a:any, b:any)=> { return a - b; })
+		
+		let segments = [];
+		let segment = [chars[0],chars[0]]
+		for(let i=1;i<chars.length;i++)
+		{
+			if(chars[i]>segment[1]+1){
+				segments.push(segment);
+				segment = [chars[i],chars[i]];
+			}else{
+				segment[1]++;
+			}
+		}
+
+		segments.push(segment);
+		segments.push([0xFFFF, 0xFFFF]);
+		let segCount = segments.length;
+
+		// Build a Format 4 subtable
+		let startCount = [];
+		let endCount = [];
+		let idDelta = [];
+		let idRangeOffset = [];
+		let glyphIdArray = '';
+		
+		for(let i=0;i<segCount;i++){
+			
+			let [start, end]=segments[i] //list(start, end) = $segments[$i];
+			startCount.push(start);
+			endCount.push(end);
+			if(start!==end)
+			{
+				// Segment with multiple chars
+				idDelta.push(0);
+				idRangeOffset.push(glyphIdArray.length+ (segCount-i)*2) //= strlen($glyphIdArray) + ($segCount-$i)*2;
+				for(let c=start;c<=end;c++)
+				{
+					
+					let ssid = this.glyphs[this.chars[c]]['ssid'];
+					glyphIdArray +=pack_n(ssid) //pack('n', $ssid);
+					console.log('1:',255)
+					console.log('2:',pack_n(255))
+				}
+
+			}else{
+				/*
+				// Segment with a single char
+				if($start<0xFFFF)
+					$ssid = $this->glyphs[$this->chars[$start]]['ssid'];
+				else
+					$ssid = 0;
+				$idDelta[] = $ssid - $start;
+				$idRangeOffset[] = 0;
+				*/
+			}
+			
+		}
+		/*
+		$entrySelector = 0;
+		$n = $segCount;
+		while($n!=1)
+		{
+			$n = $n>>1;
+			$entrySelector++;
+		}
+		$searchRange = (1<<$entrySelector)*2;
+		$rangeShift = 2*$segCount - $searchRange;
+		$cmap = pack('nnnn', 2*$segCount, $searchRange, $entrySelector, $rangeShift);
+		foreach($endCount as $val)
+			$cmap .= pack('n', $val);
+		$cmap .= pack('n', 0); // reservedPad
+		foreach($startCount as $val)
+			$cmap .= pack('n', $val);
+		foreach($idDelta as $val)
+			$cmap .= pack('n', $val);
+		foreach($idRangeOffset as $val)
+			$cmap .= pack('n', $val);
+		$cmap .= $glyphIdArray;
+
+		$data = pack('nn', 0, 1); // version, numTables
+		$data .= pack('nnN', 3, 1, 12); // platformID, encodingID, offset
+		$data .= pack('nnn', 4, 6+strlen($cmap), 0); // format, length, language
+		$data .= $cmap;
+		$this->SetTable('cmap', $data);
+		*/
 	}
 
     Read(n:number,encode:any="utf-8"){
@@ -485,6 +607,14 @@ import * as path from 'path';
 	}
 }
 
+
+const pack_n = (value:number) => {
+
+	let uint16=value & 0xFFFF;
+	let buffer=Buffer.alloc(2,value & 0xFFFF,'binary',);
+	return  buffer.toString('binary')
+}
+
 const ord = (string:any) => {
     //  discuss at: https://locutus.io/php/ord/
     // original by: Kevin van Zonneveld (https://kvz.io)
@@ -524,3 +654,202 @@ const ord = (string:any) => {
 
     return code
 }
+
+function pack(format:string,x:any) {
+	//  discuss at: https://locutus.io/php/pack/
+	// original by: Tim de Koning (https://www.kingsquare.nl)
+	//    parts by: Jonas Raoni Soares Silva (https://www.jsfromhell.com)
+	// bugfixed by: Tim de Koning (https://www.kingsquare.nl)
+	//      note 1: Float encoding by: Jonas Raoni Soares Silva
+	//      note 1: Home: https://www.kingsquare.nl/blog/12-12-2009/13507444
+	//      note 1: Feedback: phpjs-pack@kingsquare.nl
+	//      note 1: "machine dependent byte order and size" aren't
+	//      note 1: applicable for JavaScript; pack works as on a 32bit,
+	//      note 1: little endian machine.
+	//   example 1: pack('nvc*', 0x1234, 0x5678, 65, 66)
+	//   returns 1: '\u00124xVAB'
+	//   example 2: pack('H4', '2345')
+	//   returns 2: '#E'
+	//   example 3: pack('H*', 'D5')
+	//   returns 3: 'Õ'
+	//   example 4: pack('d', -100.876)
+	//   returns 4: "\u0000\u0000\u0000\u0000\u00008YÀ"
+	//        test: skip-1
+	let formatPointer = 0
+	let argumentPointer = 1
+	let result = ''
+	let argument = ''
+	let i = 0
+	let r = []
+	let instruction, quantifier, word, precisionBits, exponentBits, extraNullCount
+	// vars used by float encoding
+	let bias
+	let minExp
+	let maxExp
+	let minUnnormExp
+	let status
+	let exp
+	let len
+	let bin
+	let signal
+	let n
+	let intPart
+	let floatPart:number
+	let lastBit
+	let rounded
+	let j
+	let k
+	let tmpResult
+	while (formatPointer < format.length) {
+	  instruction = format.charAt(formatPointer)
+	  quantifier = ''
+	  formatPointer++
+	  while ((formatPointer < format.length) && (format.charAt(formatPointer)
+		.match(/[\d*]/) !== null)) {
+		quantifier += format.charAt(formatPointer)
+		formatPointer++
+	  }
+	  if (quantifier === '') {
+		quantifier = '1'
+	  }
+	  // Now pack variables: 'quantifier' times 'instruction'
+	  switch (instruction) {
+		case 'a':
+		case 'A':
+		  // NUL-padded string
+		  // SPACE-padded string
+		  if (typeof arguments[argumentPointer] === 'undefined') {
+			throw new Error('Warning:  pack() Type ' + instruction + ': not enough arguments')
+		  } else {
+			argument = String(arguments[argumentPointer])
+		  }
+		  if (quantifier === '*') {
+			quantifier = argument.length
+		  }
+		  for (i = 0; i < quantifier; i++) {
+			if (typeof argument[i] === 'undefined') {
+			  if (instruction === 'a') {
+				result += String.fromCharCode(0)
+			  } else {
+				result += ' '
+			  }
+			} else {
+			  result += argument[i]
+			}
+		  }
+		  argumentPointer++
+		  break
+		case 'h':
+		case 'H':
+		  // Hex string, low nibble first
+		  // Hex string, high nibble first
+		  if (typeof arguments[argumentPointer] === 'undefined') {
+			throw new Error('Warning: pack() Type ' + instruction + ': not enough arguments')
+		  } else {
+			argument = arguments[argumentPointer]
+		  }
+		  if (quantifier === '*') {
+			quantifier = argument.length
+		  }
+		  if (quantifier > argument.length) {
+			const msg = 'Warning: pack() Type ' + instruction + ': not enough characters in string'
+			throw new Error(msg)
+		  }
+		  for (i = 0; i < quantifier; i += 2) {
+			// Always get per 2 bytes...
+			word = argument[i]
+			if (((i + 1) >= quantifier) || typeof argument[i + 1] === 'undefined') {
+			  word += '0'
+			} else {
+			  word += argument[i + 1]
+			}
+			// The fastest way to reverse?
+			if (instruction === 'h') {
+			  word = word[1] + word[0]
+			}
+			result += String.fromCharCode(parseInt(word, 16))
+		  }
+		  argumentPointer++
+		  break
+		case 'c':
+		case 'C':
+		  // signed char
+		  // unsigned char
+		  // c and C is the same in pack
+		  if (quantifier === '*') {
+			quantifier = arguments.length - argumentPointer
+		  }
+		  if (quantifier > (arguments.length - argumentPointer)) {
+			throw new Error('Warning:  pack() Type ' + instruction + ': too few arguments')
+		  }
+		  for (i = 0; i < quantifier; i++) {
+			result += String.fromCharCode(arguments[argumentPointer])
+			argumentPointer++
+		  }
+		  break
+		case 's':
+		case 'S':
+		case 'v':
+		  // signed short (always 16 bit, machine byte order)
+		  // unsigned short (always 16 bit, machine byte order)
+		  // s and S is the same in pack
+		  if (quantifier === '*') {
+			quantifier = arguments.length - argumentPointer
+		  }
+		  if (quantifier > (arguments.length - argumentPointer)) {
+			throw new Error('Warning:  pack() Type ' + instruction + ': too few arguments')
+		  }
+		  for (i = 0; i < quantifier; i++) {
+			result += String.fromCharCode(arguments[argumentPointer] & 0xFF)
+			result += String.fromCharCode(arguments[argumentPointer] >> 8 & 0xFF)
+			argumentPointer++
+		  }
+		  break
+		case 'n':
+		  // unsigned short (always 16 bit, big endian byte order)
+		  if (quantifier === '*') {
+			quantifier = arguments.length - argumentPointer
+		  }
+		  if (quantifier > (arguments.length - argumentPointer)) {
+			throw new Error('Warning: pack() Type ' + instruction + ': too few arguments')
+		  }
+		  for (i = 0; i < quantifier; i++) {
+			result += String.fromCharCode(arguments[argumentPointer] >> 8 & 0xFF)
+			result += String.fromCharCode(arguments[argumentPointer] & 0xFF)
+			argumentPointer++
+		  }
+		  break
+		case 'i':
+		case 'I':
+		case 'l':
+		case 'L':
+		case 'V':
+		  // signed integer (machine dependent size and byte order)
+		  // unsigned integer (machine dependent size and byte order)
+		  // signed long (always 32 bit, machine byte order)
+		  // unsigned long (always 32 bit, machine byte order)
+		  // unsigned long (always 32 bit, little endian byte order)
+		  if (quantifier === '*') {
+			quantifier = arguments.length - argumentPointer
+		  }
+		  if (quantifier > (arguments.length - argumentPointer)) {
+			throw new Error('Warning:  pack() Type ' + instruction + ': too few arguments')
+		  }
+		  for (i = 0; i < quantifier; i++) {
+			result += String.fromCharCode(arguments[argumentPointer] & 0xFF)
+			result += String.fromCharCode(arguments[argumentPointer] >> 8 & 0xFF)
+			result += String.fromCharCode(arguments[argumentPointer] >> 16 & 0xFF)
+			result += String.fromCharCode(arguments[argumentPointer] >> 24 & 0xFF)
+			argumentPointer++
+		  }
+		  break
+		default:
+		  throw new Error('Warning: pack() Type ' + instruction + ': unknown format code')
+	  }
+	}
+	if (argumentPointer < arguments.length) {
+	  const msg2 = 'Warning: pack(): ' + (arguments.length - argumentPointer) + ' arguments unused'
+	  throw new Error(msg2)
+	}
+	return result
+  }
