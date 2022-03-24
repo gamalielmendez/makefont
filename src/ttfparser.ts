@@ -440,14 +440,14 @@ import * as path from 'path';
 
 	Build(){
 		this.BuildCmap();
-		/*$this->BuildHhea();
-		$this->BuildHmtx();
-		$this->BuildLoca();
-		$this->BuildGlyf();
-		$this->BuildMaxp();
-		$this->BuildPost();
-		return $this->BuildFont();
-		*/
+		this.BuildHhea();
+		this.BuildHmtx();
+		this.BuildLoca();
+		this.BuildGlyf();
+		this.BuildMaxp();
+		this.BuildPost();
+		return this.BuildFont();
+		
 	}
 
 	BuildCmap(){
@@ -497,52 +497,229 @@ import * as path from 'path';
 				{
 					
 					let ssid = this.glyphs[this.chars[c]]['ssid'];
-					glyphIdArray +=pack_n(ssid) //pack('n', $ssid);
-					console.log('1:',255)
-					console.log('2:',pack_n(255))
+					glyphIdArray +=pack('n',ssid) //pack('n', $ssid);
+	
 				}
 
 			}else{
-				/*
+				
 				// Segment with a single char
-				if($start<0xFFFF)
-					$ssid = $this->glyphs[$this->chars[$start]]['ssid'];
-				else
-					$ssid = 0;
-				$idDelta[] = $ssid - $start;
-				$idRangeOffset[] = 0;
-				*/
+				let ssid
+				if(start<0xFFFF){
+					ssid = this.glyphs[this.chars[start]]['ssid'];
+				}else{
+					ssid = 0;
+				}
+				idDelta.push(ssid - start);
+				idRangeOffset.push(0);
+				
 			}
 			
 		}
-		/*
-		$entrySelector = 0;
-		$n = $segCount;
-		while($n!=1)
+		
+		let entrySelector = 0;
+		let n = segCount;
+		while(n!==1)
 		{
-			$n = $n>>1;
-			$entrySelector++;
+			n = n>>1;
+			entrySelector++;
 		}
-		$searchRange = (1<<$entrySelector)*2;
-		$rangeShift = 2*$segCount - $searchRange;
-		$cmap = pack('nnnn', 2*$segCount, $searchRange, $entrySelector, $rangeShift);
-		foreach($endCount as $val)
-			$cmap .= pack('n', $val);
-		$cmap .= pack('n', 0); // reservedPad
-		foreach($startCount as $val)
-			$cmap .= pack('n', $val);
-		foreach($idDelta as $val)
-			$cmap .= pack('n', $val);
-		foreach($idRangeOffset as $val)
-			$cmap .= pack('n', $val);
-		$cmap .= $glyphIdArray;
 
-		$data = pack('nn', 0, 1); // version, numTables
-		$data .= pack('nnN', 3, 1, 12); // platformID, encodingID, offset
-		$data .= pack('nnn', 4, 6+strlen($cmap), 0); // format, length, language
-		$data .= $cmap;
-		$this->SetTable('cmap', $data);
-		*/
+		let searchRange = (1<<entrySelector)*2;
+		let  rangeShift = 2*segCount - searchRange;
+		let cmap = pack('nnnn', 2*segCount, searchRange, entrySelector, rangeShift);
+		endCount.forEach((val:any)=>{ cmap += pack('n', val); })
+		cmap += pack('n', 0); // reservedPad
+		startCount.forEach((val:any)=>{ 
+			cmap += pack('n', val); 
+		})
+		idDelta.forEach((val:any)=>{ 
+			cmap += pack('n', val);
+		})
+		idRangeOffset.forEach((val:any)=>{ 
+			cmap += pack('n', val); 
+		})
+		cmap += glyphIdArray;
+
+		let data = pack('nn', 0, 1); // version, numTables
+		data += pack('nnN', 3, 1, 12); // platformID, encodingID, offset
+		data += pack('nnn', 4, 6+cmap.length,0)//strlen(cmap), 0); // format, length, language
+		data += cmap;
+		this.SetTable('cmap', data);
+		
+	}
+	
+	BuildHhea(){
+		this.LoadTable('hhea');
+		let numberOfHMetrics = count(this.subsettedGlyphs);
+		let data = substr_replace(this.tables['hhea']['data'], pack('n',numberOfHMetrics), 4+15*2, 2);
+		this.SetTable('hhea', data);
+	}
+
+	BuildHmtx(){
+		let data = '';
+		this.subsettedGlyphs.forEach((id:any) => {
+			let glyph = this.glyphs[id];
+			data += pack('nn', glyph['w'], glyph['lsb']);	
+		});
+		this.SetTable('hmtx', data);
+	}
+
+	BuildLoca(){
+		let data = '';
+		let offset = 0;
+
+		this.subsettedGlyphs.forEach((id:any) => {
+			if(this.indexToLocFormat===0){
+				data += pack('n', offset/2);
+			}else{
+				data += pack('N', offset);
+			}
+			offset += this.glyphs[id]['length'];
+		});
+
+		if(this.indexToLocFormat===0){
+			data += pack('n', offset/2);
+		}else{
+			data += pack('N', offset);
+		}
+		this.SetTable('loca', data);
+	}
+
+	BuildGlyf(){
+
+		let tableOffset = this.tables['glyf']['offset'];
+		let data = '';
+		
+		this.subsettedGlyphs.forEach((id:any) => {
+			
+			let glyph = this.glyphs[id];
+			this.FSeek(tableOffset+glyph['offset'])
+			let glyph_data = this.Read(glyph['length']);
+			if(glyph['components']){
+				
+				
+				// Composite glyph
+				glyph['components'].forEach((cid:any,offset:number) => {
+					let ssid = this.glyphs[cid]['ssid'];
+					glyph_data = substr_replace(glyph_data, pack('n',ssid), offset, 2);	
+				});
+
+			}
+
+			data += glyph_data;
+
+		});
+		this.SetTable('glyf', data);
+	}
+
+	BuildMaxp(){
+		this.LoadTable('maxp');
+		let numGlyphs = count(this.subsettedGlyphs);
+		let data = substr_replace(this.tables['maxp']['data'], pack('n',numGlyphs), 4, 2);
+		this.SetTable('maxp', data);
+	}
+
+	BuildPost(){
+
+		this.Seek('post');
+		let data:any
+
+		if(this.glyphNames){
+
+			// Version 2.0
+			let numberOfGlyphs = count(this.subsettedGlyphs);
+			let numNames = 0;
+			let names = '';
+			data = this.Read(2*4+2*2+5*4);
+			data += pack('n', numberOfGlyphs);
+			
+			this.subsettedGlyphs.forEach((id:any) => {
+				const name = this.glyphs[id]['name'];
+				if(typeof name ==="string"){
+					data += pack('n', 258+numNames);
+					names +=  String.fromCharCode(name.length)+name;
+					numNames++;
+				}else{
+					data += pack('n', name);	
+				}
+
+			});
+
+			data += names;
+		
+		}else{
+
+			// Version 3.0
+			this.Skip(4);
+			data = "\x00\x03\x00\x00";
+			data += this.Read(4+2*2+5*4);
+		}
+
+		this.SetTable('post', data);
+	}
+
+	BuildFont(){	
+		
+		
+		let tags:any = [];
+
+		['cmap', 'cvt ', 'fpgm', 'glyf', 'head', 'hhea', 'hmtx', 'loca', 'maxp', 'name', 'post', 'prep'].forEach((tag)=>{
+
+			if(this.tables[tag]){
+				tags.push(tag)	
+			}
+
+		})	
+
+		let numTables = count(tags);
+		let offset = 12 + 16*numTables;
+		tags.forEach((tag:any)=>{
+
+			if(!this.tables[tag]['data']){
+				this.LoadTable(tag);
+			}
+			this.tables[tag]['offset'] = offset;
+			offset += this.tables[tag]['data'].length;
+		})	
+
+
+		// Build offset table
+		let entrySelector = 0;
+		let n = numTables;
+		while(n!==1)
+		{
+			n = n>>1;
+			entrySelector++;
+		}
+		
+		let searchRange = 16*(1<<entrySelector);
+		let rangeShift = 16*numTables - searchRange;
+		let offsetTable = pack('nnnnnn', 1, 0, numTables, searchRange, entrySelector, rangeShift);
+		tags.forEach((tag:any)=>{
+			let table = this.tables[tag];
+			offsetTable += tag+table['checkSum']+pack('NN', table['offset'], table['length']);
+		})
+		
+		// Compute checkSumAdjustment (0xB1B0AFBA - font checkSum)
+		let s = this.CheckSum(offsetTable);
+		tags.forEach((tag:any)=>{
+			s += this.tables[tag]['checkSum'];
+		})
+
+		let a:any = unpack('n2', this.CheckSum(s));
+		let high = 0xB1B0 + (a[1]^0xFFFF);
+		let low = 0xAFBA + (a[2]^0xFFFF) + 1;
+		let checkSumAdjustment = pack('nn', high+(low>>16), low);
+		this.tables['head']['data'] = substr_replace(this.tables['head']['data'], checkSumAdjustment, 8, 4);
+		
+		let font = offsetTable;
+		tags.forEach((tag:any)=>{
+			font += this.tables[tag]['data'];
+		})
+		
+		return font;
+		
 	}
 
     Read(n:number,encode:any="utf-8"){
@@ -550,9 +727,9 @@ import * as path from 'path';
 		let buffer= Buffer.alloc ? Buffer.alloc(n) : new Buffer(n);
 		let read = fs.readSync(this.f,buffer,0,n,this.possition)
 
-		if (!read) {
-			this.Error('Error while reading stream');
-		}
+		//if (!read) {
+		//	this.Error('Error while reading stream');
+		//}
 		this.possition+=read
 		return buffer.toString(encode);
 
@@ -589,11 +766,47 @@ import * as path from 'path';
         return buffer.readUInt32BE()
 
     }
+	
+	CheckSum(s:string)
+	{
+		let n = s.length//strlen($s);
+		let high = 0;
+		let low = 0;
+		for(let i=0;i<n;i+=4)
+		{
+			high += (ord(s[i])<<8) + ord(s[i+1]);
+			low += (ord(s[i+2])<<8) + ord(s[i+3]);
+		}
+
+		return pack('nn', high+(low>>16), low);
+	}
 
 	Skip(n:number){ 
 		this.possition+=n
 	}
 	
+	LoadTable(tag:string){
+		this.Seek(tag);
+		let length = this.tables[tag]['length'];
+		let n = length % 4;
+		if(n>0){
+			length += 4 - n;
+		}
+		this.tables[tag]['data'] = this.Read(length);
+	}
+	
+	SetTable(tag:string, data:any){
+
+		let length = data.length //strlen($data);
+		let n = length % 4;
+		if(n>0){
+			data = strPad(data, length+4-n, "\x00");
+		}
+		this.tables[tag]['data'] = data;
+		this.tables[tag]['length'] = length;
+		this.tables[tag]['checkSum'] = this.CheckSum(data);
+	}
+
 	Seek(tag:string){
 		this.possition=this.tables[tag]['offset']
 	}
@@ -607,12 +820,21 @@ import * as path from 'path';
 	}
 }
 
+function strPad(input:any, length:any, string:any) {
+    string = string || '0'; input = input + '';
+    return input.length >= length ? input : new Array(length - input.length + 1).join(string) + input;
+}
 
 const pack_n = (value:number) => {
 
-	let uint16=value & 0xFFFF;
-	let buffer=Buffer.alloc(2,value & 0xFFFF,'binary',);
-	return  buffer.toString('binary')
+	let uint161=value>>8 & 0xFF;
+	let uint16=value & 0xFF;
+
+	let result=String.fromCharCode(uint161) 
+	result+=String.fromCharCode(uint16) 
+
+	//let buffer=Buffer.alloc(2,uint16,'ascii');
+	return result//buffer.toString('binary')
 }
 
 const ord = (string:any) => {
@@ -655,7 +877,7 @@ const ord = (string:any) => {
     return code
 }
 
-function pack(format:string,x:any) {
+function pack(format:string,...args: any[]) {
 	//  discuss at: https://locutus.io/php/pack/
 	// original by: Tim de Koning (https://www.kingsquare.nl)
 	//    parts by: Jonas Raoni Soares Silva (https://www.jsfromhell.com)
@@ -805,6 +1027,22 @@ function pack(format:string,x:any) {
 			argumentPointer++
 		  }
 		  break
+		case 'N':
+			// unsigned long (always 32 bit, big endian byte order)
+			if (quantifier === '*') {
+			  quantifier = arguments.length - argumentPointer
+			}
+			if (quantifier > (arguments.length - argumentPointer)) {
+			  throw new Error('Warning:  pack() Type ' + instruction + ': too few arguments')
+			}
+			for (i = 0; i < quantifier; i++) {
+			  result += String.fromCharCode(arguments[argumentPointer] >> 24 & 0xFF)
+			  result += String.fromCharCode(arguments[argumentPointer] >> 16 & 0xFF)
+			  result += String.fromCharCode(arguments[argumentPointer] >> 8 & 0xFF)
+			  result += String.fromCharCode(arguments[argumentPointer] & 0xFF)
+			  argumentPointer++
+			}
+			break
 		case 'n':
 		  // unsigned short (always 16 bit, big endian byte order)
 		  if (quantifier === '*') {
@@ -852,4 +1090,161 @@ function pack(format:string,x:any) {
 	  throw new Error(msg2)
 	}
 	return result
+  }
+
+const count = (obj:any) => {
+
+    if (Array.isArray(obj)) {
+        return obj.length
+    } else if (typeof obj === 'object') {
+        return Object.keys(obj).length
+    } else {
+        return 0
+    }
+
+}
+
+function substr_replace (str:any, replace:any, start:number, length:number) { // eslint-disable-line camelcase
+	//  discuss at: https://locutus.io/php/substr_replace/
+	// original by: Brett Zamir (https://brett-zamir.me)
+	//   example 1: substr_replace('ABCDEFGH:/MNRPQR/', 'bob', 0)
+	//   returns 1: 'bob'
+	//   example 2: var $var = 'ABCDEFGH:/MNRPQR/'
+	//   example 2: substr_replace($var, 'bob', 0, $var.length)
+	//   returns 2: 'bob'
+	//   example 3: substr_replace('ABCDEFGH:/MNRPQR/', 'bob', 0, 0)
+	//   returns 3: 'bobABCDEFGH:/MNRPQR/'
+	//   example 4: substr_replace('ABCDEFGH:/MNRPQR/', 'bob', 10, -1)
+	//   returns 4: 'ABCDEFGH:/bob/'
+	//   example 5: substr_replace('ABCDEFGH:/MNRPQR/', 'bob', -7, -1)
+	//   returns 5: 'ABCDEFGH:/bob/'
+	//   example 6: substr_replace('ABCDEFGH:/MNRPQR/', '', 10, -1)
+	//   returns 6: 'ABCDEFGH://'
+	if (start < 0) {
+	  // start position in str
+	  start = start + str.length
+	}
+	length = length !== undefined ? length : str.length
+	if (length < 0) {
+	  length = length + str.length - start
+	}
+	return [
+	  str.slice(0, start),
+	  replace.substr(0, length),
+	  replace.slice(length),
+	  str.slice(start + length)
+	].join('')
+  }
+
+  function unpack(format:string, data:any) {
+	// http://kevin.vanzonneveld.net
+	// +   original by: Tim de Koning (http://www.kingsquare.nl)
+	// +      parts by: Jonas Raoni Soares Silva - http://www.jsfromhell.com
+	// +      parts by: Joshua Bell - http://cautionsingularityahead.blogspot.nl/
+	// +
+	// +   bugfixed by: marcuswestin
+	// %        note 1: Float decoding by: Jonas Raoni Soares Silva
+	// %        note 2: Home: http://www.kingsquare.nl/blog/22-12-2009/13650536
+	// %        note 3: Feedback: phpjs-unpack@kingsquare.nl
+	// %        note 4: 'machine dependant byte order and size' aren't
+	// %        note 5: applicable for JavaScript unpack works as on a 32bit,
+	// %        note 6: little endian machine
+	// *     example 1: unpack('d', "\u0000\u0000\u0000\u0000\u00008YÀ");
+	// *     returns 1: { "": -100.875 }
+  
+	var formatPointer = 0, dataPointer = 0, result:any = {}, instruction = '',
+		quantifier = '', label = '', currentData = '', i = 0, j = 0,
+		word = '', fbits = 0, ebits = 0, dataByteLength = 0;
+  
+	// Used by float decoding - by Joshua Bell
+	  //http://cautionsingularityahead.blogspot.nl/2010/04/javascript-and-ieee754-redux.html
+	var fromIEEE754 = function(bytes:string, ebits:any, fbits:any) {
+	  // Bytes to bits
+	  var bits = [];
+	  for (var i = bytes.length; i; i -= 1) {
+		var byte =  parseInt(bytes[i - 1]);
+		for (var j = 8; j; j -= 1) {
+		  bits.push(byte % 2 ? 1 : 0); byte = byte >> 1;
+		}
+	  }
+	  bits.reverse();
+	  var str = bits.join('');
+  
+	  // Unpack sign, exponent, fraction
+	  var bias = (1 << (ebits - 1)) - 1;
+	  var s = parseInt(str.substring(0, 1), 2) ? -1 : 1;
+	  var e = parseInt(str.substring(1, 1 + ebits), 2);
+	  var f = parseInt(str.substring(1 + ebits), 2);
+  
+	  // Produce number
+	  if (e === (1 << ebits) - 1) {
+		return f !== 0 ? NaN : s * Infinity;
+	  }
+	  else if (e > 0) {
+		return s * Math.pow(2, e - bias) * (1 + f / Math.pow(2, fbits));
+	  }
+	  else if (f !== 0) {
+		return s * Math.pow(2, -(bias-1)) * (f / Math.pow(2, fbits));
+	  }
+	  else {
+		return s * 0;
+	  }
+	}
+	
+	while (formatPointer < format.length) {
+	  instruction = format.charAt(formatPointer);
+  
+	  // Start reading 'quantifier'
+	  let quantifier:any = '';
+	  formatPointer++;
+	  while ((formatPointer < format.length) &&
+		  (format.charAt(formatPointer).match(/[\d\*]/) !== null)) {
+		quantifier += format.charAt(formatPointer);
+		formatPointer++;
+	  }
+	  if (quantifier === '') {
+		quantifier = '1';
+	  }
+  
+  
+	  // Start reading label
+	  let label:string = '';
+	  while ((formatPointer < format.length) &&
+		  (format.charAt(formatPointer) !== '/')) {
+		label += format.charAt(formatPointer);
+		formatPointer++;
+	  }
+	  if (format.charAt(formatPointer) === '/') {
+		formatPointer++;
+	  }
+  
+	  // Process given instruction
+	  switch (instruction) {
+
+		case 'n': // unsigned short (always 16 bit, big endian byte order)
+		  if (quantifier === '*') {
+			quantifier = (data.length - dataPointer) / 2;
+		  } else {
+			quantifier = parseInt(quantifier, 10);
+		  }
+  
+		  currentData = data.substr(dataPointer, quantifier * 2);
+		  dataPointer += quantifier * 2;
+  
+		  for (i = 0; i < currentData.length; i += 2) {
+			// sum per word;
+			let currentResult = ((currentData.charCodeAt(i) & 0xFF) << 8) +(currentData.charCodeAt(i + 1) & 0xFF);
+			console.log()
+			const key:string=label+(quantifier>1)?`${((i / 2) + 1)}`:''
+			result[key] = currentResult;
+		  
+		  }
+		  break;
+
+		default:
+		  throw new Error('Warning:  unpack() Type ' + instruction +
+			  ': unknown format code');
+	  }
+	}
+	return result;
   }
