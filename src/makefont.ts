@@ -305,7 +305,8 @@ function GetInfoFromTrueType(file:string, embed:boolean, subset:boolean, map:any
 			info['Data'] = ttf?.Build();
 		
 		}else{
-			//info['Data'] = file_get_contents(file);
+			const bf=fs.readFileSync(file)
+			info['Data'] =bf.toString('binary')//file_get_contents(file);
         }
 
 		info['OriginalSize'] = info['Data'].length
