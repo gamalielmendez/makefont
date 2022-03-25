@@ -8,6 +8,7 @@
     "build": "tsc && npm run movefiles",
     "start": "node dist/index.js",
     "test": "npm run build && node dist/test/test.js",
+    "test_cli": "npm run build && node dist/index.js /home/gamaliel/DJBMonogram.ttf",
     "movefiles": "copyfiles -u 1 ./src/*.map ./dist"
   },
   "repository": {

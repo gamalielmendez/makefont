@@ -37,7 +37,7 @@ export default function MakeFont(fontfile:string, enc:string='cp1252', embed:boo
 
 	if(embed)
 	{
-		if(function_exists('zlib'))
+		/*if(function_exists('zlib'))
 		{
 			let file = _basename+'.z';
 			SaveToFile(file, gzcompress(info['Data']), 'b');
@@ -45,11 +45,11 @@ export default function MakeFont(fontfile:string, enc:string='cp1252', embed:boo
 			console.log('Font file compressed: '+file);
 		}
 		else
-		{
+		{*/
 			info['File'] = basename(fontfile);
 			subset = false;
 			console.log('Font file could not be compressed (zlib extension not available)');
-		}
+		//}
 	}
 	
 	MakeDefinitionFile(_basename+'.js', type, enc, embed, subset, map, info);
