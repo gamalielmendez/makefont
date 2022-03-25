@@ -711,14 +711,19 @@ import * as path from 'path';
 		let high = 0xB1B0 + (a[1]^0xFFFF);
 		let low = 0xAFBA + (a[2]^0xFFFF) + 1;
 		let checkSumAdjustment = pack('nn', high+(low>>16), low);
+
 		this.tables['head']['data'] = substr_replace(this.tables['head']['data'], checkSumAdjustment, 8, 4);
 		
-		let font = offsetTable;
-		tags.forEach((tag:any)=>{
-			font += this.tables[tag]['data'];
-		})
+		//const mbufftmp=Buffer.from(offsetTable)
+		let font =offsetTable//mbufftmp.toString('binary')//offsetTable;
+		tags.forEach((tag:string)=>{
+
+			//const mbuff=Buffer.from(this.tables[tag]['data'],'binary')
+			font +=this.tables[tag]['data'];//mbuff.toString('binary') //this.tables[tag]['data'];
 		
-		return font;
+		})
+
+		return Buffer.from(font,'utf8').toString('utf8');
 		
 	}
 
@@ -792,7 +797,7 @@ import * as path from 'path';
 		if(n>0){
 			length += 4 - n;
 		}
-		this.tables[tag]['data'] = this.Read(length);
+		this.tables[tag]['data'] = this.Read(length,'binary');
 	}
 	
 	SetTable(tag:string, data:any){
@@ -802,7 +807,7 @@ import * as path from 'path';
 		if(n>0){
 			data = strPad(data, length+4-n, "\x00");
 		}
-		this.tables[tag]['data'] = data;
+		this.tables[tag]['data'] = Buffer.from(data).toString('binary');
 		this.tables[tag]['length'] = length;
 		this.tables[tag]['checkSum'] = this.CheckSum(data);
 	}
@@ -823,18 +828,6 @@ import * as path from 'path';
 function strPad(input:any, length:any, string:any) {
     string = string || '0'; input = input + '';
     return input.length >= length ? input : new Array(length - input.length + 1).join(string) + input;
-}
-
-const pack_n = (value:number) => {
-
-	let uint161=value>>8 & 0xFF;
-	let uint16=value & 0xFF;
-
-	let result=String.fromCharCode(uint161) 
-	result+=String.fromCharCode(uint16) 
-
-	//let buffer=Buffer.alloc(2,uint16,'ascii');
-	return result//buffer.toString('binary')
 }
 
 const ord = (string:any) => {
