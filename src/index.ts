@@ -2,7 +2,7 @@
 import MakeFont from "./makefont"
 
     if(process.argv.length===2){
-        console.log("Usage: php makefont.php fontfile [encoding] [embed] [subset]\n")
+        console.log("Usage:  makefont_njs fontfile [encoding] [embed] [subset]\n")
     }else{
         
         let fontfile = process.argv[2];
