@@ -237,10 +237,21 @@ function MakeUnicodeArray(map:any)
 }
 
 function SaveToFile(file:string, s:any, mode:any){
-	
+
+	const data= (!Buffer.isBuffer(s)) ? Buffer.from(s,'binary') : s
+	/*
 	const buffer = new Readable({ read() { } });
-	buffer.push(s)
+	buffer.push(data.toString('binary'),'binary')
 	buffer.pipe(fs.createWriteStream(file))
+	*/
+	
+	const f= fs.openSync(path.join(file),"w")
+	if(!f){
+		Error('Can\'t write to file '+file);
+	}
+	fs.writeSync(f,s)
+	fs.closeSync(f)
+	
 	/*
 	$f = fopen($file, 'w'.$mode);
 	if(!$f)
@@ -473,8 +484,8 @@ const function_exists = (cModule:string) => {
 
 }
 
-const gzcompress = (data:any) => {
-    const chunk = (!Buffer.isBuffer(data)) ? Buffer.from(data, 'binary') : data
-    return zlib.deflateSync(chunk)
+const gzcompress = (data:string) => {
+    const chunk = (!Buffer.isBuffer(data)) ? Buffer.from(data) : data
+    return zlib.deflateSync(chunk,{level:6})
 }
 
