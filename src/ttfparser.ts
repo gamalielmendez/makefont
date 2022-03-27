@@ -320,15 +320,16 @@ import * as path from 'path';
 			const nameID = this.ReadUShort();
 			const length = this.ReadUShort();
 			const offset = this.ReadUShort();
-			if(nameID===6)
-			{
+			if(nameID===6){
+
 				// PostScript name
 				this.FSeek(tableOffset+stringOffset+offset);
-				let s = this.Read(length);
-				s = s.replace(String.fromCharCode(0),'') //str_replace(chr(0), '', $s);
-				s = s.replace(/|[ \[\](){}<>/%]|/,'');//preg_replace('|[ \[\](){}<>/%]|', '', $s);
+				let s = this.Read(length) as string; 
+				s=s.replace(new RegExp(String.fromCharCode(0),'g'),'') //str_replace(chr(0), '', $s);
+				s=s.replace(/|[ \[\](){}<>/%]|/g,'');//preg_replace('|[ \[\](){}<>/%]|', '', $s);
 				this.postScriptName = s;
 				break;
+
 			}
 		}
 
@@ -595,7 +596,7 @@ import * as path from 'path';
 			
 			let glyph = this.glyphs[id];
 			this.FSeek(tableOffset+glyph['offset'])
-			let glyph_data = this.Read(glyph['length']);
+			let glyph_data = this.Read(glyph['length']) as string;
 			if(glyph['components']){
 				
 				
@@ -723,21 +724,22 @@ import * as path from 'path';
 		
 		})
 
-		return Buffer.from(font,'utf8').toString('utf8');
+		return font//Buffer.from(font).toString('binary');
 		
 	}
 
-    Read(n:number,encode:any="utf-8"){
+    Read(n:number,encode:any="binary",lconvert:boolean=true){
         
 		let buffer= Buffer.alloc ? Buffer.alloc(n) : new Buffer(n);
 		let read = fs.readSync(this.f,buffer,0,n,this.possition)
-
-		//if (!read) {
-		//	this.Error('Error while reading stream');
-		//}
 		this.possition+=read
-		return buffer.toString(encode);
-
+		
+		if(lconvert){
+			return buffer.toString(encode);
+		}else{
+			return buffer
+		}
+		
     }
     
 	ReadShort(){
@@ -797,7 +799,7 @@ import * as path from 'path';
 		if(n>0){
 			length += 4 - n;
 		}
-		this.tables[tag]['data'] = this.Read(length,'binary');
+		this.tables[tag]['data'] = this.Read(length,'binary',false);
 	}
 	
 	SetTable(tag:string, data:any){
@@ -1097,7 +1099,7 @@ const count = (obj:any) => {
 
 }
 
-function substr_replace (str:any, replace:any, start:number, length:number) { // eslint-disable-line camelcase
+function substr_replace (str:string, replace:string, start:number, length:number) { // eslint-disable-line camelcase
 	//  discuss at: https://locutus.io/php/substr_replace/
 	// original by: Brett Zamir (https://brett-zamir.me)
 	//   example 1: substr_replace('ABCDEFGH:/MNRPQR/', 'bob', 0)
