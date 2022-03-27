@@ -1,6 +1,6 @@
 {
   "name": "makefont_njs",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Programa de consola para crear fuentes para node-fpdf",
   "main": "index.js",
   "bin": "dist/index.js",
