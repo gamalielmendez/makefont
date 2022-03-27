@@ -1,6 +1,6 @@
 {
   "name": "makefont_njs",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Programa de consola para crear fuentes para node-fpdf",
   "main": "index.js",
   "bin": "dist/index.js",
@@ -9,7 +9,7 @@
     "start": "node dist/index.js",
     "test": "npm run build && node dist/test/test.js",
     "test_cli": "npm run build && node dist/index.js /home/gamaliel/DJBMonogram.ttf",
-    "test_cli_v": "npm run build && node dist/index.js -h",
+    "test_cli_v": "npm run build && node dist/index.js /home/gamaliel/CevicheOne-Regular.ttf",
     "movefiles": "copyfiles -u 1 ./src/*.map ./dist",
     "prepare": "npm run build"
   },

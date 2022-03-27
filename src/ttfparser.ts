@@ -138,7 +138,6 @@ import * as path from 'path';
 			this.glyphs[i] = {'w':advanceWidth, 'lsb':lsb};
 		}
 
-		console.log(`len glyphs${this.glyphs.length}`)
 	}
 
 	ParseLoca()
