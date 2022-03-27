@@ -1,6 +1,6 @@
 {
   "name": "makefont_njs",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "description": "Programa de consola para crear fuentes para node-fpdf",
   "main": "index.js",
   "bin": "dist/index.js",
@@ -9,7 +9,8 @@
     "start": "node dist/index.js",
     "test": "npm run build && node dist/test/test.js",
     "test_cli": "npm run build && node dist/index.js /home/gamaliel/DJBMonogram.ttf",
-    "movefiles": "copyfiles -u 1 ./src/*.map ./dist"
+    "movefiles": "copyfiles -u 1 ./src/*.map ./dist",
+    "prepare": "npm run build"
   },
   "repository": {
     "type": "git",
@@ -22,14 +23,11 @@
   },
   "homepage": "https://github.com/gamalielmendez/makefont#readme",
   "devDependencies": {
-    "@types/inquirer": "^8.2.0",
-    "@types/lowdb": "^1.0.11",
+    "@types/node": "^17.0.23",
     "copyfiles": "^2.4.1",
     "typescript": "^4.6.2"
   },
   "dependencies": {
-    "inquirer": "^8.2.0",
-    "lowdb": "^3.0.0",
     "n-readlines": "^1.0.1"
   }
 }
